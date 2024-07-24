@@ -20,8 +20,11 @@ type Item struct {
 	Comment    string
 }
 
+// docker run -d --rm -v $(pwd):/app -w /app golang:1.22-alpine go run generate_colours.go
+
 func main() {
-	numberOfColors := 10000
+	numberOfColors := 1000
+	fmt.Printf("Start sending %d colors", numberOfColors)
 
 	// Send items to Gorse
 	for i := 0; i < numberOfColors; i++ {
@@ -50,7 +53,7 @@ func generateColor(index, total int) string {
 }
 
 func sendItemToGorse(item Item) error {
-	url := "http://157.245.64.102:8087/api/item" // Replace with your Gorse API endpoint
+	url := "http://0.0.0.0:8087/api/item" // Replace with your Gorse API endpoint
 
 	jsonData, err := json.Marshal(item)
 	if err != nil {
