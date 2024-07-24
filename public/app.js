@@ -18,7 +18,7 @@ const loadRecommendations = async (number) => {
     if (loading) return;
     loading = true;
 
-    const response = await fetch(`http://178.62.197.190:8080/recommend?userId=${userId}&n=${number}&offset=${offset}`);
+    const response = await fetch(`/recommend?userId=${userId}&n=${number}&offset=${offset}`);
     const recommendations = await response.json();
 
     const content = document.getElementById('content');
@@ -35,7 +35,7 @@ const loadRecommendations = async (number) => {
 };
 
 const likeColor = async (color) => {
-    await fetch('http://178.62.197.190:8080/like', {
+    await fetch('/like', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
