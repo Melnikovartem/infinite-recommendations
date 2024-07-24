@@ -1,5 +1,11 @@
 const userId = `user_${Math.random().toString(36).substr(2, 9)}`;
 let loading = false;
+let offset = 0;
+
+// Reset offset every minute
+setInterval(() => {
+    offset = 0;
+}, 60000);
 
 const calculateInitialLoad = () => {
     const squareSize = 120; // 100px square + 20px margin
@@ -12,7 +18,7 @@ const loadRecommendations = async (number) => {
     if (loading) return;
     loading = true;
 
-    const response = await fetch(`/recommend?userId=${userId}&Number=${number}`);
+    const response = await fetch(`http://178.62.197.190:8080/recommend?userId=${userId}&n=${number}&offset=${offset}`);
     const recommendations = await response.json();
 
     const content = document.getElementById('content');
@@ -24,11 +30,12 @@ const loadRecommendations = async (number) => {
         content.appendChild(square);
     });
 
+    offset += number; // Update offset
     loading = false;
 };
 
 const likeColor = async (color) => {
-    await fetch('/like', {
+    await fetch('http://178.62.197.190:8080/like', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

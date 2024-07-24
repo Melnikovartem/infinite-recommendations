@@ -4,15 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	cors "github.com/rs/cors"
+	client "github.com/zhenghaoz/gorse/client"
 	"net/http"
 	"os"
 	"strconv"
-
-	client "github.com/zhenghaoz/gorse/client"
 )
 
 type Recommendation struct {
 	HTMLColor string `json:"html_color"`
+}
+
+type HTTPHandler struct {
+	mu    *http.ServeMux
+	gorse *client.GorseClient
 }
 
 func main() {
@@ -21,60 +26,85 @@ func main() {
 	gorseApiKey := os.Getenv("GORSE_API_KEY")
 	gorseUrl := fmt.Sprintf("http://%s:%s", gorseMasterHost, gorseMasterPort)
 	fmt.Println("Proxy for gorse server at ", gorseUrl)
-	gorse := client.NewGorseClient(gorseUrl, gorseApiKey)
 
-	http.Handle("/", http.FileServer(http.Dir("./public")))
+	handler := HTTPHandler{
+		mu:    http.NewServeMux(),
+		gorse: client.NewGorseClient(gorseUrl, gorseApiKey),
+	}
 
-	http.HandleFunc("/recommend", func(w http.ResponseWriter, r *http.Request) {
-		userId := r.URL.Query().Get("userId")
-		number := 10 // Default number of recommendations
-		if n := r.URL.Query().Get("Number"); n != "" {
-			number, _ = strconv.Atoi(n)
-		}
+	handler.mu.Handle("/", http.FileServer(http.Dir("./public")))
 
-		recommendations, err := gorse.GetRecommend(context.Background(), userId, "", number)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	handler.mu.HandleFunc("/recommend", handler.recommendUser)
 
-		var colorRecommendations []Recommendation
-		for _, rec := range recommendations {
-			colorRecommendations = append(colorRecommendations, Recommendation{
-				HTMLColor: rec,
-			})
-		}
+	handler.mu.HandleFunc("/like", handler.likeColour)
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(colorRecommendations)
-	})
+	err := http.ListenAndServe(":8080", cors.Default().Handler(handler.mu))
+	if err != nil {
+		fmt.Println("error server not running at http://localhost:8080 ", err.Error())
+		return
+	}
+	fmt.Println("server running at http://localhost:8080")
+}
 
-	http.HandleFunc("/like", func(w http.ResponseWriter, r *http.Request) {
-		var data map[string]string
-		err := json.NewDecoder(r.Body).Decode(&data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		userId := data["userId"]
-		htmlColor := data["html_color"]
+func (handler *HTTPHandler) recommendUser(w http.ResponseWriter, r *http.Request) {
+	userId := r.URL.Query().Get("userId")
+	number := 10 // Default number of recommendations
+	if n := r.URL.Query().Get("Number"); n != "" {
+		number, _ = strconv.Atoi(n)
+	}
 
-		_, err = gorse.InsertFeedback(context.Background(), []client.Feedback{
-			{
-				FeedbackType: "like",
-				UserId:       userId,
-				ItemId:       htmlColor,
-			},
+	recommendations, err := handler.gorse.GetRecommend(context.Background(), userId, "", number)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var colorRecommendations []Recommendation
+	for _, rec := range recommendations {
+		colorRecommendations = append(colorRecommendations, Recommendation{
+			HTMLColor: rec,
 		})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	}
+	go handler.informRead(userId, recommendations)
 
-		fmt.Printf("User %s liked color %s\n", userId, htmlColor)
-		w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(colorRecommendations)
+}
+
+func (handler *HTTPHandler) informRead(userId string, itemIds []string) {
+	var feedback []client.Feedback
+	for _, item := range itemIds {
+		feedback = append(feedback, client.Feedback{
+			FeedbackType: "read",
+			UserId:       userId,
+			ItemId:       item,
+		})
+	}
+	handler.gorse.InsertFeedback(context.Background(), feedback)
+}
+
+func (handler *HTTPHandler) likeColour(w http.ResponseWriter, r *http.Request) {
+	var data map[string]string
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	userId := data["userId"]
+	htmlColor := data["html_color"]
+
+	_, err = handler.gorse.InsertFeedback(context.Background(), []client.Feedback{
+		{
+			FeedbackType: "like",
+			UserId:       userId,
+			ItemId:       htmlColor,
+		},
 	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	fmt.Println("Server running at http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
+	fmt.Printf("User %s liked color %s\n", userId, htmlColor)
+	w.WriteHeader(http.StatusOK)
 }

@@ -21,12 +21,17 @@ type Item struct {
 }
 
 // docker run -d --rm -v $(pwd):/app -w /app golang:1.22-alpine go run generate_colours.go
+const url = "http://178.62.197.190:8087/"
+
+// const url = "http://0.0.0.0/"
 
 func main() {
-	numberOfColors := 1000
-	fmt.Printf("Start sending %d colors", numberOfColors)
+	numberOfColors := 10000
+	batchSize := 100
+	fmt.Printf("Start sending %d colors\n", numberOfColors)
 
 	// Send items to Gorse
+	var batchToSend []Item
 	for i := 0; i < numberOfColors; i++ {
 		color := generateColor(i, numberOfColors)
 		item := Item{
@@ -37,12 +42,18 @@ func main() {
 			Labels:     getColorLabels(color),
 			Comment:    "Generated color",
 		}
-		err := sendItemToGorse(item)
-		if err != nil {
-			fmt.Printf("Error sending item %s to Gorse: %v\n", item.ItemId, err)
-		} else if i%(numberOfColors/1000) == 0 || i == (numberOfColors-1) {
-			fmt.Printf("%d: Successfully sent item %s to Gorse\n", i, item.ItemId)
+		batchToSend = append(batchToSend, item)
+		needSend := i%batchSize == batchSize-1 || i == (numberOfColors-1)
+		if !needSend {
+			continue
 		}
+		err := sendItemsToGorse(batchToSend)
+		if err != nil {
+			fmt.Printf("Error sending %d items last %s to Gorse: %v\n", len(batchToSend), item.ItemId, err)
+		} else {
+			fmt.Printf("%d: Successfully sent %d items last %s to Gorse \n", i, len(batchToSend), item.ItemId)
+		}
+		batchToSend = []Item{}
 	}
 }
 
@@ -52,15 +63,15 @@ func generateColor(index, total int) string {
 	return fmt.Sprintf("#%06x", value)
 }
 
-func sendItemToGorse(item Item) error {
-	url := "http://0.0.0.0:8087/api/item" // Replace with your Gorse API endpoint
+func sendItemsToGorse(item []Item) error {
+	endpoint := url + "api/items" // Replace with your Gorse API endpoint
 
 	jsonData, err := json.Marshal(item)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return err
 	}

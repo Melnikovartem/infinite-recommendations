@@ -2,7 +2,10 @@ module color-recommender
 
 go 1.22.5
 
-require github.com/zhenghaoz/gorse v0.4.15
+require (
+	github.com/rs/cors v1.11.0
+	github.com/zhenghaoz/gorse v0.4.15
+)
 
 require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
