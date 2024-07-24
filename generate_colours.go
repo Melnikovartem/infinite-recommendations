@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math/rand"
-	"time"
+	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Item struct {
@@ -22,7 +25,7 @@ func generateColor() string {
 }
 
 // getColorProperties converts a hex color to its RGB components
-func getColorProperties(color string) (int, int, int) {
+func hexToRGB(color string) (int, int, int) {
 	colorHex := strings.TrimPrefix(color, "#")
 	r, _ := strconv.ParseInt(colorHex[0:2], 16, 32)
 	g, _ := strconv.ParseInt(colorHex[2:4], 16, 32)
@@ -30,47 +33,49 @@ func getColorProperties(color string) (int, int, int) {
 	return int(r), int(g), int(b)
 }
 
-// getColorLabels generates multiple labels for a color based on its properties
-func getColorLabels(color string) []string {
-	r, g, b := getColorProperties(color)
-	labels := []string{}
-
-	// Basic hue-based categories
+// getHueLabel classifies the color into basic hue categories
+func getHueLabel(r, g, b int) string {
 	if r > g && r > b {
-		labels = append(labels, "warm", "red")
-	} else if b > r && b > g {
-		labels = append(labels, "cool", "blue")
+		return "red"
 	} else if g > r && g > b {
-		labels = append(labels, "green")
-	} else {
-		labels = append(labels, "neutral")
+		return "green"
+	} else if b > r && b > g {
+		return "blue"
 	}
+	return "neutral"
+}
 
-	// Brightness-based categories
-	brightness := (r + g + b) / 3
+// getBrightnessLabel classifies the color based on brightness
+func getBrightnessLabel(r, g, b int) string {
+	brightness := (r*299 + g*587 + b*114) / 1000
 	if brightness > 200 {
-		labels = append(labels, "bright")
-	} else if brightness < 100 {
-		labels = append(labels, "dark")
-	} else {
-		labels = append(labels, "medium")
+		return "bright"
 	}
+	return "dark"
+}
 
-	// Saturation-based categories
+// getSaturationLabel classifies the color based on saturation
+func getSaturationLabel(r, g, b int) string {
 	max := max(r, g, b)
 	min := min(r, g, b)
 	if max == min {
-		labels = append(labels, "gray")
-	} else {
-		saturation := float64(max-min) / float64(max)
-		if saturation > 0.5 {
-			labels = append(labels, "vivid")
-		} else {
-			labels = append(labels, "pastel")
-		}
+		return "unsaturated"
 	}
+	saturation := float64(max-min) / float64(max)
+	if saturation > 0.5 {
+		return "vibrant"
+	}
+	return "dull"
+}
 
-	return labels
+// getColorLabels generates multiple labels for a color based on its properties
+func getColorLabels(color string) []string {
+	r, g, b := hexToRGB(color)
+	return []string{
+		getHueLabel(r, g, b),
+		getBrightnessLabel(r, g, b),
+		getSaturationLabel(r, g, b),
+	}
 }
 
 func generateItems(n int) []Item {
@@ -92,16 +97,41 @@ func generateItems(n int) []Item {
 	return items
 }
 
-func main() {
-	// Generate 100 color items
-	items := generateItems(100)
+func sendItemToGorse(item Item) error {
+	url := "http://localhost:8088/api/item" // Replace with your Gorse API endpoint
 
-	// Print items
-	for _, item := range items {
-		fmt.Println(item)
+	jsonData, err := json.Marshal(item)
+	if err != nil {
+		return err
 	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to send item to Gorse, status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
+func main() {
+	// Generate 100 color items
+	items := generateItems(1000)
+
+	// Send items to Gorse
+	for _, item := range items {
+		err := sendItemToGorse(item)
+		if err != nil {
+			fmt.Printf("Error sending item %s to Gorse: %v\n", item.ItemId, err)
+		} else {
+			fmt.Printf("Successfully sent item %s to Gorse\n", item.ItemId)
+		}
+	}
+}
 
 // max returns the maximum of three integers
 func max(a, b, c int) int {

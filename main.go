@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
-	"time"
+	"os"
+	"strconv"
+
+	client "github.com/zhenghaoz/gorse/client"
 )
 
 type Recommendation struct {
@@ -13,23 +16,37 @@ type Recommendation struct {
 }
 
 func main() {
+	gorseMasterHost := os.Getenv("GORSE_SERVER_HOST")
+	gorseMasterPort := os.Getenv("GORSE_SERVER_PORT")
+	gorseApiKey := os.Getenv("GORSE_API_KEY")
+	gorseUrl := fmt.Sprintf("http://%s:%s", gorseMasterHost, gorseMasterPort)
+	fmt.Println("Proxy for gorse server at ", gorseUrl)
+	gorse := client.NewGorseClient(gorseUrl, gorseApiKey)
+
 	http.Handle("/", http.FileServer(http.Dir("./public")))
 
 	http.HandleFunc("/recommend", func(w http.ResponseWriter, r *http.Request) {
+		userId := r.URL.Query().Get("userId")
 		number := 10 // Default number of recommendations
-		if n, ok := r.URL.Query()["Number"]; ok {
-			fmt.Sscanf(n[0], "%d", &number)
+		if n := r.URL.Query().Get("Number"); n != "" {
+			number, _ = strconv.Atoi(n)
 		}
 
-		var recommendations []Recommendation
-		for i := 0; i < number; i++ {
-			recommendations = append(recommendations, Recommendation{
-				HTMLColor: fmt.Sprintf("#%06x", rand.Intn(0xFFFFFF)),
+		recommendations, err := gorse.GetRecommend(context.Background(), userId, "", number)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		var colorRecommendations []Recommendation
+		for _, rec := range recommendations {
+			colorRecommendations = append(colorRecommendations, Recommendation{
+				HTMLColor: rec,
 			})
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(recommendations)
+		json.NewEncoder(w).Encode(colorRecommendations)
 	})
 
 	http.HandleFunc("/like", func(w http.ResponseWriter, r *http.Request) {
@@ -39,15 +56,25 @@ func main() {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
 		userId := data["userId"]
 		htmlColor := data["html_color"]
+
+		_, err = gorse.InsertFeedback(context.Background(), []client.Feedback{
+			{
+				FeedbackType: "like",
+				UserId:       userId,
+				ItemId:       htmlColor,
+			},
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		fmt.Printf("User %s liked color %s\n", userId, htmlColor)
 		w.WriteHeader(http.StatusOK)
 	})
 
-	rand.Seed(time.Now().UnixNano())
 	fmt.Println("Server running at http://localhost:8080")
 	http.ListenAndServe(":8080", nil)
 }

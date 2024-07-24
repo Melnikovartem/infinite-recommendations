@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - GORSE_SERVER_HOST=gorse-server
+      - GORSE_SERVER_PORT=8087
+      - GORSE_API_KEY=pIuN9WrgAz25xya0RAzUGnqMwfzY5Fb4
+    depends_on:
+      - gorse-server
+
+  gorse-master:
+    image: zhenghaoz/gorse-master
+    ports:
+      # - "8086:8086"
+      - "8088:8088"
+    command: >
+      -c /etc/gorse/config.toml 
+      --log-path /var/log/gorse/master.log 
+      --cache-path /var/lib/gorse/master_cache.data
+    volumes:
+      - ./config.toml:/etc/gorse/config.toml
+      - master_data:/var/lib/gorse
+      - gorse_log:/var/log/gorse
+    depends_on:
+      - gorse-server
+      - postgres
+      - redis
+
+  gorse-server:
+    image: zhenghaoz/gorse-server
+    ports:
+      - "8087:8087"
+    command: >
+      --master-host gorse-master --master-port 8086 
+      --http-host 0.0.0.0 --http-port 8087
+      --log-path /var/log/gorse/server.log 
+      --cache-path /var/lib/gorse/server_cache.data
+    volumes:
+      - server_data:/var/lib/gorse
+      - gorse_log:/var/log/gorse
+    depends_on:
+      - gorse-worker
+
+  gorse-worker:
+    image: zhenghaoz/gorse-worker
+    command: >
+      --master-host gorse-master --master-port 8086 
+      --http-host 0.0.0.0 --http-port 8089
+      --log-path /var/log/gorse/worker.log 
+      --cache-path /var/lib/gorse/worker_cache.data
+    volumes:
+      - worker_data:/var/lib/gorse
+      - gorse_log:/var/log/gorse
+
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: gorse
+      POSTGRES_USER: gorse
+      POSTGRES_PASSWORD: gorse_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:6
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+  worker_data:
+  server_data:
+  master_data:
+  gorse_log:
