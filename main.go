@@ -6,6 +6,7 @@ import (
 	"fmt"
 	cors "github.com/rs/cors"
 	client "github.com/zhenghaoz/gorse/client"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"strconv"
@@ -46,18 +47,34 @@ func main() {
 	fmt.Println("server running at http://localhost:8080")
 }
 
+func getRandomIndex() string {
+	total := 100000
+	index := rand.IntN(total)
+	// Start from white (255, 255, 255) and go to black (0, 0, 0)
+	value := int(float64(0xFFFFFF) * (float64(index) / float64(total-1)))
+	return fmt.Sprintf("#%06x", value)
+}
+
 func (handler *HTTPHandler) recommendUser(w http.ResponseWriter, r *http.Request) {
 	userId := r.URL.Query().Get("userId")
 	number := 10 // Default number of recommendations
-	if n := r.URL.Query().Get("Number"); n != "" {
+	if n := r.URL.Query().Get("n"); n != "" {
 		number, _ = strconv.Atoi(n)
 	}
 
-	recommendations, err := handler.gorse.GetRecommend(context.Background(), userId, "", number)
+	recommendations, err := handler.gorse.GetRecommend(context.Background(), userId, "", number*4/5)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	for range number - len(recommendations) {
+		recommendations = append(recommendations, getRandomIndex())
+	}
+
+	rand.Shuffle(len(recommendations), func(i, j int) {
+		recommendations[i], recommendations[j] = recommendations[j], recommendations[i]
+	})
 
 	var colorRecommendations []Recommendation
 	for _, rec := range recommendations {

@@ -1,11 +1,5 @@
 const userId = `user_${Math.random().toString(36).substr(2, 9)}`;
 let loading = false;
-let offset = 0;
-
-// Reset offset every minute
-setInterval(() => {
-    offset = 0;
-}, 60000);
 
 const calculateInitialLoad = () => {
     const squareSize = 120; // 100px square + 20px margin
@@ -17,9 +11,17 @@ const calculateInitialLoad = () => {
 const loadRecommendations = async (number) => {
     if (loading) return;
     loading = true;
-
-    const response = await fetch(`/recommend?userId=${userId}&n=${number}&offset=${offset}`);
+    const response = await fetch(`/recommend?userId=${userId}&n=${number}`);
     const recommendations = await response.json();
+
+    console.log(recommendations)
+    if (!recommendations || recommendations.length === 0) {
+        setTimeout(() => {
+            loading = false;
+            loadRecommendations(number)
+        }, 1000);
+        return;
+    }
 
     const content = document.getElementById('content');
     recommendations.forEach(recommendation => {
@@ -29,8 +31,6 @@ const loadRecommendations = async (number) => {
         square.addEventListener('click', () => likeColor(recommendation.html_color));
         content.appendChild(square);
     });
-
-    offset += number; // Update offset
     loading = false;
 };
 

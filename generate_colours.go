@@ -21,14 +21,14 @@ type Item struct {
 }
 
 // docker run -d --rm -v $(pwd):/app -w /app golang:1.22-alpine go run generate_colours.go
-const url = "http://178.62.197.190:8087/"
+// const url = "http://209.38.44.64:8087/"
 
-// const url = "http://0.0.0.0/"
+const url = "http://0.0.0.0:8087/"
 
 func main() {
-	numberOfColors := 10000
-	batchSize := 100
-	fmt.Printf("Start sending %d colors\n", numberOfColors)
+	numberOfColors := 100000
+	batchSize := 10000
+	fmt.Printf("Start sending %d colors by %d batches\n", numberOfColors, batchSize)
 
 	// Send items to Gorse
 	var batchToSend []Item
