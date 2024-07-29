@@ -18,11 +18,11 @@ services:
       # - "8086:8086"
       - "8088:8088"
     command: >
-      -c /etc/gorse/config.toml 
+      -c /etc/gorse/gorse_rec_config.toml 
       --log-path /var/log/gorse/master.log 
       --cache-path /var/lib/gorse/master_cache.data
     volumes:
-      - ./config.toml:/etc/gorse/config.toml
+      - ../gorse_rec_config.toml:/etc/gorse/gorse_rec_config.toml
       - master_data:/var/lib/gorse
       - gorse_log:/var/log/gorse
     cpus: 0.2

@@ -14,7 +14,6 @@ const loadRecommendations = async (number) => {
     const response = await fetch(`/recommend?userId=${userId}&n=${number}`);
     const recommendations = await response.json();
 
-    console.log(recommendations)
     if (!recommendations || recommendations.length === 0) {
         setTimeout(() => {
             loading = false;

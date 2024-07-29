@@ -1,3 +1,2 @@
-# infinite-recommendations
-Test drive for recommendation system
-https://gorse.io/
+# portal-rec-system
+We use [gorse](https://gorse.io/) as the engine to power the recommendation system
