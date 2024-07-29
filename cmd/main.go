@@ -43,9 +43,10 @@ func main() {
 
 	handler.mu.Handle("/", http.FileServer(http.Dir("./public")))
 
-	handler.mu.HandleFunc("/recommend", handler.recommendUser)
+	handler.mu.HandleFunc("/api/v1/recommend", handler.recommendUser)
 
-	handler.mu.HandleFunc("/like", handler.likeColour)
+	handler.mu.HandleFunc("/api/v1/feedback/play10min", handler.play10minGame)
+	handler.mu.HandleFunc("/api/v1/feedback/openedGame", handler.openedGame)
 
 	err := http.ListenAndServe(":8080", cors.Default().Handler(handler.mu))
 	if err != nil {
@@ -96,7 +97,15 @@ func (handler *HTTPHandler) recommendUser(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(colorRecommendations)
 }
 
-func (handler *HTTPHandler) likeGame(w http.ResponseWriter, r *http.Request) {
+func (handler *HTTPHandler) play10minGame(w http.ResponseWriter, r *http.Request) {
+	handler.feedbackGame(w, r, played10Min)
+}
+
+func (handler *HTTPHandler) openedGame(w http.ResponseWriter, r *http.Request) {
+	handler.feedbackGame(w, r, openedGame)
+}
+
+func (handler *HTTPHandler) feedbackGame(w http.ResponseWriter, r *http.Request, feedback feedbackType) {
 	var data map[string]string
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
@@ -104,13 +113,13 @@ func (handler *HTTPHandler) likeGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userId := data["userId"]
-	htmlColor := data["gameId"]
+	gameId := data["gameId"]
 
 	_, err = handler.gorse.InsertFeedback(context.Background(), []client.Feedback{
 		{
-			FeedbackType: "like",
+			FeedbackType: string(feedback),
 			UserId:       userId,
-			ItemId:       htmlColor,
+			ItemId:       gameId,
 			Timestamp:    time.Now().String(),
 		},
 	})
@@ -119,21 +128,8 @@ func (handler *HTTPHandler) likeGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("User %s liked color %s\n", userId, htmlColor)
+	fmt.Printf("User %s liked game %s\n", userId, gameId)
 	w.WriteHeader(http.StatusOK)
-}
-
-func (handler *HTTPHandler) informFeedBack(userId string, gameId string, feedback feedbackType) {
-	var feedback []client.Feedback
-	for _, item := range itemIds {
-		feedback = append(feedback, client.Feedback{
-			FeedbackType: "read",
-			UserId:       userId,
-			ItemId:       item,
-			Timestamp:    time.Now().String(),
-		})
-	}
-	handler.gorse.InsertFeedback(context.Background(), feedback)
 }
 
 func (handler *HTTPHandler) informRead(userId string, itemIds []string) {
