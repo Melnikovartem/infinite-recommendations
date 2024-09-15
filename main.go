@@ -64,8 +64,8 @@ func (handler *HTTPHandler) recommendUser(w http.ResponseWriter, r *http.Request
 
 	recommendations, err := handler.gorse.GetRecommend(context.Background(), userId, "", number*4/5)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		fmt.Printf("error getting recommendations %s\n", err.Error())
+		recommendations = []string{}
 	}
 
 	for range number - len(recommendations) {
